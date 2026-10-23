@@ -1,0 +1,44 @@
+name: Deploy blog to E2
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-blog
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Setup SSH key
+        env:
+          E2_HOST: ${{ secrets.E2_HOST }}
+          E2_SSH_KEY: ${{ secrets.E2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$E2_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$E2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Rsync dist to E2
+        env:
+          E2_USER: ${{ secrets.E2_USER }}
+          E2_HOST: ${{ secrets.E2_HOST }}
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" dist/ "$E2_USER@$E2_HOST":/var/www/blog/
