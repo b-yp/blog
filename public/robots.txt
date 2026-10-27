@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://baiyapeng.cc/sitemap-index.xml
