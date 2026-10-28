@@ -1,0 +1,98 @@
+---
+interface Props {
+	repo?: string;
+	repoId?: string;
+	category?: string;
+	categoryId?: string;
+	mapping?: string;
+	strict?: string;
+	reactionsEnabled?: string;
+	emitMetadata?: string;
+	inputPosition?: 'top' | 'bottom';
+	theme?: string;
+	lang?: string;
+	loading?: 'lazy' | 'eager';
+}
+
+const {
+	repo = 'b-yp/blog',
+	repoId = 'R_kgDOSa8j-g',
+	category = 'Announcements',
+	categoryId = 'DIC_kwDOSa8j-s4DJygP',
+	mapping = 'pathname',
+	strict = '0',
+	reactionsEnabled = '1',
+	emitMetadata = '0',
+	inputPosition = 'top',
+	theme = 'light',
+	lang = 'zh-CN',
+	loading = 'lazy',
+} = Astro.props;
+---
+
+<section class="giscus-container">
+	<div class="giscus"></div>
+</section>
+
+<script
+	is:inline
+	src="https://giscus.app/client.js"
+	data-repo={repo}
+	data-repo-id={repoId}
+	data-category={category}
+	data-category-id={categoryId}
+	data-mapping={mapping}
+	data-strict={strict}
+	data-reactions-enabled={reactionsEnabled}
+	data-emit-metadata={emitMetadata}
+	data-input-position={inputPosition}
+	data-theme={theme}
+	data-lang={lang}
+	data-loading={loading}
+	crossorigin="anonymous"
+	async
+></script>
+
+<script is:inline>
+	function getCurrentSiteTheme() {
+		const isDark =
+			document.documentElement.classList.contains('dark') ||
+			document.documentElement.getAttribute('data-theme') === 'dark';
+		return isDark ? 'dark' : 'light';
+	}
+
+	function syncGiscusTheme() {
+		const iframe = document.querySelector('iframe.giscus-frame');
+		if (!iframe || !iframe.contentWindow) return;
+		iframe.contentWindow.postMessage(
+			{ giscus: { setConfig: { theme: getCurrentSiteTheme() } } },
+			'https://giscus.app'
+		);
+	}
+
+	// 初始化时如果网站是暗色则更新主题
+	window.addEventListener('message', function (event) {
+		if (event.origin !== 'https://giscus.app') return;
+		if (typeof event.data !== 'object' || !event.data.giscus) return;
+		if (getCurrentSiteTheme() === 'dark') {
+			syncGiscusTheme();
+		}
+	});
+
+	// 监听网页根节点 class / data-theme 的动态变化（用于暗黑模式切换按钮）
+	const themeObserver = new MutationObserver(() => {
+		syncGiscusTheme();
+	});
+	themeObserver.observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ['class', 'data-theme'],
+	});
+</script>
+
+<style>
+	.giscus-container {
+		margin-top: 3rem;
+		padding-top: 2rem;
+		border-top: 1px solid rgb(var(--gray-light));
+	}
+</style>
