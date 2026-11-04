@@ -1,0 +1,171 @@
+---
+// CopyCode.astro: 为所有代码块添加右上角一键复制按钮，使用 morphicons 实现 Copy -> Check 的弹簧形变动画
+---
+
+<script>
+	import { Check, Copy } from 'lucide';
+	import type { MorphIconElement } from 'morphicons/element';
+	import { defineMorphIcon } from 'morphicons/element';
+
+	defineMorphIcon();
+
+	function setupCopyCodeButtons() {
+		const codeBlocks = document.querySelectorAll<HTMLPreElement>('pre:not([data-copy-init])');
+
+		codeBlocks.forEach((pre) => {
+			pre.setAttribute('data-copy-init', 'true');
+
+			// 创建外部包装容器，确保横向滚动时按钮始终固定在右上角
+			const wrapper = document.createElement('div');
+			wrapper.className = 'code-block-wrapper';
+			pre.parentNode?.insertBefore(wrapper, pre);
+			wrapper.appendChild(pre);
+
+			// 创建复制按钮
+			const button = document.createElement('button');
+			button.className = 'copy-code-btn';
+			button.type = 'button';
+			button.setAttribute('aria-label', '复制代码');
+			button.setAttribute('title', '复制代码');
+
+			// 创建 MorphIcon 元素
+			const morphEl = document.createElement('morph-icon') as MorphIconElement;
+			morphEl.setAttribute('size', '15');
+			morphEl.setAttribute('stroke-width', '2');
+			morphEl.className = 'copy-morph-icon';
+			button.appendChild(morphEl);
+
+			// 初始渲染为 Copy 图标
+			if (typeof morphEl.set === 'function') {
+				morphEl.set(Copy);
+			} else {
+				// 元素 upgrade 等待回调
+				customElements.whenDefined('morph-icon').then(() => {
+					morphEl.set(Copy);
+				});
+			}
+
+			wrapper.appendChild(button);
+
+			// 复制逻辑
+			let timeoutId: number | undefined;
+
+			button.addEventListener('click', async () => {
+				const code = pre.querySelector('code');
+				const text = code ? code.innerText : pre.innerText;
+
+				try {
+					await navigator.clipboard.writeText(text);
+
+					button.classList.add('copied');
+					button.setAttribute('title', '已复制到剪贴板！');
+					button.setAttribute('aria-label', '已复制到剪贴板！');
+
+					// 触发 Morphicons 顺滑变形动画：Copy -> Check
+					if (typeof morphEl.morphTo === 'function') {
+						morphEl.morphTo(Check, 'snappy');
+					}
+
+					if (timeoutId) {
+						window.clearTimeout(timeoutId);
+					}
+
+					timeoutId = window.setTimeout(() => {
+						button.classList.remove('copied');
+						button.setAttribute('title', '复制代码');
+						button.setAttribute('aria-label', '复制代码');
+						// 顺滑变回：Check -> Copy
+						if (typeof morphEl.morphTo === 'function') {
+							morphEl.morphTo(Copy, 'snappy');
+						}
+					}, 2000);
+				} catch (err) {
+					console.error('复制代码失败:', err);
+					const textarea = document.createElement('textarea');
+					textarea.value = text;
+					textarea.style.position = 'fixed';
+					textarea.style.opacity = '0';
+					document.body.appendChild(textarea);
+					textarea.select();
+					try {
+						document.execCommand('copy');
+						button.classList.add('copied');
+						morphEl.morphTo?.(Check, 'snappy');
+						setTimeout(() => {
+							button.classList.remove('copied');
+							morphEl.morphTo?.(Copy, 'snappy');
+						}, 2000);
+					} catch (e) {
+						console.error('Fallback 复制也失败:', e);
+					} finally {
+						document.body.removeChild(textarea);
+					}
+				}
+			});
+		});
+	}
+
+	setupCopyCodeButtons();
+	document.addEventListener('astro:page-load', setupCopyCodeButtons);
+	document.addEventListener('astro:after-swap', setupCopyCodeButtons);
+</script>
+
+<style is:global>
+	.code-block-wrapper {
+		position: relative;
+		margin: 1.5em 0;
+	}
+
+	.code-block-wrapper pre {
+		margin: 0;
+	}
+
+	.copy-code-btn {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border-radius: 6px;
+		border: 1px solid transparent;
+		background-color: rgba(125, 125, 125, 0.15);
+		color: rgb(var(--gray));
+		cursor: pointer;
+		opacity: 0.6;
+		transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+		z-index: 10;
+		user-select: none;
+	}
+
+	.code-block-wrapper:hover .copy-code-btn {
+		opacity: 1;
+	}
+
+	.copy-code-btn:hover {
+		color: rgb(var(--black));
+		background-color: rgba(125, 125, 125, 0.28);
+		border-color: rgba(125, 125, 125, 0.2);
+	}
+
+	.copy-code-btn:active {
+		transform: scale(0.92);
+	}
+
+	.copy-code-btn.copied {
+		opacity: 1;
+		color: #10b981;
+		background-color: rgba(16, 185, 129, 0.15);
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	.copy-morph-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+</style>
