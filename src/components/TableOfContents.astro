@@ -1,0 +1,275 @@
+---
+import type { MarkdownHeading } from 'astro';
+
+interface Props {
+	headings: MarkdownHeading[];
+	view?: 'desktop' | 'mobile' | 'both';
+}
+
+const { headings = [], view = 'both' } = Astro.props;
+
+// 过滤仅展示二级和三级标题（h2, h3），排除 h1
+const filteredHeadings = headings.filter((h) => h.depth > 1 && h.depth <= 4);
+
+// 计算最小层级，以此为基准做相对缩进
+const minDepth = filteredHeadings.length > 0 ? Math.min(...filteredHeadings.map((h) => h.depth)) : 2;
+
+const hasTOC = filteredHeadings.length > 1;
+---
+
+{
+	hasTOC && (
+		<div class="toc-root">
+			{/* 移动端极简折叠面板 */}
+			{(view === 'mobile' || view === 'both') && (
+				<details class="toc-mobile">
+					<summary class="toc-mobile-summary">
+						<span class="toc-mobile-title">
+							<span>导航 ({filteredHeadings.length})</span>
+						</span>
+						<svg class="toc-mobile-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<polyline points="6 9 12 15 18 9"></polyline>
+						</svg>
+					</summary>
+					<nav class="toc-mobile-nav">
+						<ul class="toc-list">
+							{filteredHeadings.map((heading) => (
+								<li class={`toc-item depth-${heading.depth - minDepth}`}>
+									<a href={`#${heading.slug}`} class="toc-link" data-slug={heading.slug}>
+										{heading.text}
+									</a>
+								</li>
+							))}
+						</ul>
+					</nav>
+				</details>
+			)}
+
+			{/* 桌面端极简悬浮列表（无标题、无图标） */}
+			{(view === 'desktop' || view === 'both') && (
+				<nav class="toc-desktop-nav" aria-label="文章导航">
+					<ul class="toc-list">
+						{filteredHeadings.map((heading) => (
+							<li class={`toc-item depth-${heading.depth - minDepth}`}>
+								<a href={`#${heading.slug}`} class="toc-link" data-slug={heading.slug} title={heading.text}>
+									{heading.text}
+								</a>
+							</li>
+						))}
+					</ul>
+				</nav>
+			)}
+		</div>
+	)
+}
+
+<style>
+	.toc-root {
+		width: 100%;
+	}
+
+	/* 移动端极简折叠面板 */
+	.toc-mobile {
+		display: block;
+		margin: 1.5rem 0 2rem 0;
+		padding: 0.5rem 0.8rem;
+		border-radius: 6px;
+		background: transparent;
+		border: 1px solid var(--border-color);
+		font-size: 0.85rem;
+	}
+
+	.toc-mobile-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		cursor: pointer;
+		user-select: none;
+		list-style: none;
+		color: rgb(var(--gray));
+		font-size: 0.85rem;
+	}
+
+	.toc-mobile-summary:hover {
+		color: rgb(var(--black));
+	}
+
+	.toc-mobile-summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.toc-mobile-title {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+
+	.toc-mobile-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background-color: var(--accent);
+	}
+
+	.toc-mobile-chevron {
+		transition: transform 0.2s ease;
+		color: rgb(var(--gray));
+	}
+
+	.toc-mobile[open] .toc-mobile-chevron {
+		transform: rotate(180deg);
+	}
+
+	.toc-mobile-nav {
+		margin-top: 0.6rem;
+		padding-top: 0.6rem;
+		border-top: 1px dashed var(--border-color);
+		max-height: 280px;
+		overflow-y: auto;
+	}
+
+	/* 桌面端纯净列表 */
+	.toc-desktop-nav {
+		width: 100%;
+	}
+
+	/* 列表与层级公共样式 */
+	.toc-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.toc-item {
+		line-height: 1.45;
+	}
+
+	.toc-item.depth-0 {
+		padding-left: 0;
+	}
+
+	.toc-item.depth-1 {
+		padding-left: 0.85rem;
+	}
+
+	.toc-item.depth-2 {
+		padding-left: 1.7rem;
+	}
+
+	/* 极简纯文字目录链接（无任何竖线、无背景块） */
+	.toc-link {
+		display: block;
+		padding: 0.2rem 0;
+		color: rgb(var(--gray));
+		text-decoration: none;
+		font-size: 0.84rem;
+		font-weight: 400;
+		background: transparent;
+		transition: color 0.15s ease;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.toc-link:hover {
+		color: rgb(var(--black));
+		background: transparent;
+	}
+
+	/* 仅依靠文字颜色轻量高亮 */
+	.toc-link.active {
+		color: var(--accent);
+		font-weight: 500;
+		background: transparent;
+	}
+</style>
+
+<script>
+	function setupScrollSpy() {
+		const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
+		if (links.length === 0) return;
+
+		// 收集所有去重后的标题 ID
+		const headingIds = Array.from(
+			new Set(
+				Array.from(links)
+					.map((link) => link.getAttribute('data-slug'))
+					.filter((slug): slug is string => Boolean(slug))
+			)
+		);
+
+		const headings = headingIds
+			.map((id) => document.getElementById(id))
+			.filter((el): el is HTMLElement => Boolean(el));
+
+		if (headings.length === 0) return;
+
+		let activeSlug = '';
+
+		function updateActiveHeading() {
+			const threshold = 140; // 考虑吸顶 Header 高度
+			let current: HTMLElement | null = null;
+
+			for (let i = 0; i < headings.length; i++) {
+				const heading = headings[i];
+				const rect = heading.getBoundingClientRect();
+				if (rect.top <= threshold) {
+					current = heading;
+				} else {
+					break;
+				}
+			}
+
+			// 如果还没有滚动到第一个标题上方，默认定位在第一个
+			if (!current && headings.length > 0) {
+				current = headings[0];
+			}
+
+			const currentSlug = current ? current.getAttribute('id') || '' : '';
+
+			if (currentSlug !== activeSlug) {
+				activeSlug = currentSlug;
+
+				links.forEach((link) => {
+					if (link.getAttribute('data-slug') === activeSlug) {
+						link.classList.add('active');
+					} else {
+						link.classList.remove('active');
+					}
+				});
+			}
+		}
+
+		let ticking = false;
+		function onScroll() {
+			if (!ticking) {
+				window.requestAnimationFrame(() => {
+					updateActiveHeading();
+					ticking = false;
+				});
+				ticking = true;
+			}
+		}
+
+		window.addEventListener('scroll', onScroll, { passive: true });
+		window.addEventListener('resize', onScroll, { passive: true });
+		updateActiveHeading();
+
+		// 移动端点击目录项后自动折叠面板
+		const mobileDetails = document.querySelector<HTMLDetailsElement>('.toc-mobile');
+		links.forEach((link) => {
+			link.addEventListener('click', () => {
+				if (mobileDetails?.hasAttribute('open')) {
+					mobileDetails.removeAttribute('open');
+				}
+			});
+		});
+	}
+
+	setupScrollSpy();
+	document.addEventListener('astro:page-load', setupScrollSpy);
+	document.addEventListener('astro:after-swap', setupScrollSpy);
+</script>
