@@ -9,7 +9,6 @@ interface Props {
 	reactionsEnabled?: string;
 	emitMetadata?: string;
 	inputPosition?: 'top' | 'bottom';
-	theme?: string;
 	lang?: string;
 	loading?: 'lazy' | 'eager';
 }
@@ -24,62 +23,76 @@ const {
 	reactionsEnabled = '1',
 	emitMetadata = '0',
 	inputPosition = 'top',
-	theme = 'light',
 	lang = 'zh-CN',
 	loading = 'lazy',
 } = Astro.props;
 ---
 
 <section class="giscus-container">
-	<div class="giscus"></div>
+	<div class="giscus" id="giscus-wrapper"></div>
 </section>
 
 <script
 	is:inline
-	src="https://giscus.app/client.js"
-	data-repo={repo}
-	data-repo-id={repoId}
-	data-category={category}
-	data-category-id={categoryId}
-	data-mapping={mapping}
-	data-strict={strict}
-	data-reactions-enabled={reactionsEnabled}
-	data-emit-metadata={emitMetadata}
-	data-input-position={inputPosition}
-	data-theme={theme}
-	data-lang={lang}
-	data-loading={loading}
-	crossorigin="anonymous"
-	async
-></script>
-
-<script is:inline>
-	function getCurrentSiteTheme() {
+	define:vars={{
+		repo,
+		repoId,
+		category,
+		categoryId,
+		mapping,
+		strict,
+		reactionsEnabled,
+		emitMetadata,
+		inputPosition,
+		lang,
+		loading,
+	}}
+>
+	function getGiscusTheme() {
 		const isDark =
 			document.documentElement.classList.contains('dark') ||
 			document.documentElement.getAttribute('data-theme') === 'dark';
-		return isDark ? 'dark' : 'light';
+		return isDark ? 'transparent_dark' : 'light';
+	}
+
+	function loadGiscus() {
+		const wrapper = document.getElementById('giscus-wrapper');
+		if (!wrapper) return;
+
+		// 检查是否已经存在
+		wrapper.innerHTML = '';
+
+		const script = document.createElement('script');
+		script.src = 'https://giscus.app/client.js';
+		script.setAttribute('data-repo', repo);
+		script.setAttribute('data-repo-id', repoId);
+		script.setAttribute('data-category', category);
+		script.setAttribute('data-category-id', categoryId);
+		script.setAttribute('data-mapping', mapping);
+		script.setAttribute('data-strict', strict);
+		script.setAttribute('data-reactions-enabled', reactionsEnabled);
+		script.setAttribute('data-emit-metadata', emitMetadata);
+		script.setAttribute('data-input-position', inputPosition);
+		// 核心：初始加载就精确获取当前页面真实深浅色，绝不写死 light
+		script.setAttribute('data-theme', getGiscusTheme());
+		script.setAttribute('data-lang', lang);
+		script.setAttribute('data-loading', loading);
+		script.crossOrigin = 'anonymous';
+		script.async = true;
+
+		wrapper.appendChild(script);
 	}
 
 	function syncGiscusTheme() {
 		const iframe = document.querySelector('iframe.giscus-frame');
 		if (!iframe || !iframe.contentWindow) return;
 		iframe.contentWindow.postMessage(
-			{ giscus: { setConfig: { theme: getCurrentSiteTheme() } } },
+			{ giscus: { setConfig: { theme: getGiscusTheme() } } },
 			'https://giscus.app'
 		);
 	}
 
-	// 初始化时如果网站是暗色则更新主题
-	window.addEventListener('message', function (event) {
-		if (event.origin !== 'https://giscus.app') return;
-		if (typeof event.data !== 'object' || !event.data.giscus) return;
-		if (getCurrentSiteTheme() === 'dark') {
-			syncGiscusTheme();
-		}
-	});
-
-	// 监听网页根节点 class / data-theme 的动态变化（用于暗黑模式切换按钮）
+	// 监听网页根节点 class / data-theme 的动态变化（用于暗黑模式切换按钮实时联动）
 	const themeObserver = new MutationObserver(() => {
 		syncGiscusTheme();
 	});
@@ -87,12 +100,17 @@ const {
 		attributes: true,
 		attributeFilter: ['class', 'data-theme'],
 	});
+
+	// 初次加载与页面切换时初始化
+	loadGiscus();
+	document.addEventListener('astro:page-load', loadGiscus);
+	document.addEventListener('astro:after-swap', loadGiscus);
 </script>
 
 <style>
 	.giscus-container {
-		margin-top: 3rem;
+		margin-top: 3.5rem;
 		padding-top: 2rem;
-		border-top: 1px solid rgb(var(--gray-light));
+		border-top: 1px solid var(--border-color);
 	}
 </style>
