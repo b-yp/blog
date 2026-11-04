@@ -42,9 +42,13 @@ html.dark {
 
 html {
 	scroll-behavior: smooth;
+	min-height: 100%;
 }
 
 body {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
 	font-family: var(--font-atkinson), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 	margin: 0;
 	padding: 0;
@@ -58,10 +62,12 @@ body {
 	transition: background-color 0.25s ease, color 0.25s ease;
 }
 main {
+	flex: 1 0 auto;
 	width: 720px;
 	max-width: calc(100% - 2em);
-	margin: auto;
+	margin: 0 auto;
 	padding: 3em 1em;
+	box-sizing: border-box;
 }
 h1,
 h2,
