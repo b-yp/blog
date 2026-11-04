@@ -37,8 +37,8 @@ const today = new Date();
 </footer>
 <style>
 	footer {
-		padding: 3em 1em 4em 1em;
-		background: linear-gradient(var(--gray-gradient)) no-repeat;
+		padding: 3.5em 1em 4.5em 1em;
+		border-top: 1px solid var(--border-color);
 		color: rgb(var(--gray));
 		text-align: center;
 		display: flex;
@@ -46,6 +46,7 @@ const today = new Date();
 		align-items: center;
 		gap: 1em;
 		font-size: 0.9em;
+		transition: border-color 0.25s ease;
 	}
 	.social-links {
 		display: flex;

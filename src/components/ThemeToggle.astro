@@ -1,0 +1,147 @@
+---
+// ThemeToggle.astro: 使用 morphicons 实现任意图标顺滑变形动画，且外观与社交图标完全一致（无边框）
+import MorphIcon from 'morphicons/astro';
+import { Monitor } from 'lucide';
+---
+
+<button
+	id="theme-toggle-btn"
+	type="button"
+	class="theme-toggle-btn"
+	aria-label="切换色彩主题"
+	title="切换色彩主题"
+>
+	<MorphIcon id="theme-morph-icon" icon={Monitor} size={18} strokeWidth={2} spring="snappy" />
+</button>
+
+<style>
+	.theme-toggle-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: rgb(var(--gray-dark));
+		border-radius: 6px;
+		cursor: pointer;
+		user-select: none;
+		transition: color 0.15s ease, background-color 0.15s ease;
+	}
+
+	.theme-toggle-btn:hover {
+		color: var(--accent);
+		background-color: var(--code-bg);
+	}
+
+	.theme-toggle-btn:active {
+		transform: scale(0.95);
+	}
+</style>
+
+<script>
+	import { Monitor, Moon, Sun } from 'lucide';
+	import type { MorphIconElement } from 'morphicons/element';
+
+	const ICONS = {
+		system: Monitor,
+		light: Sun,
+		dark: Moon,
+	} as const;
+
+	type ThemeMode = keyof typeof ICONS;
+	const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark'];
+
+	function setupThemeToggle() {
+		const btn = document.getElementById('theme-toggle-btn');
+		const morphEl = document.getElementById('theme-morph-icon') as MorphIconElement | null;
+		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+		function getCurrentPreference(): ThemeMode {
+			const saved = localStorage.getItem('theme');
+			if (saved === 'light' || saved === 'dark') {
+				return saved;
+			}
+			return 'system';
+		}
+
+		function updateTooltip(preference: ThemeMode) {
+			if (!btn) return;
+			let titleText = '';
+			if (preference === 'system') {
+				const isDark = mediaQuery.matches;
+				titleText = `当前：跟随系统 (${isDark ? '深色' : '浅色'})，点击切换为浅色`;
+			} else if (preference === 'light') {
+				titleText = '当前：浅色模式，点击切换为深色';
+			} else {
+				titleText = '当前：深色模式，点击切换为跟随系统';
+			}
+			btn.setAttribute('title', titleText);
+			btn.setAttribute('aria-label', titleText);
+		}
+
+		function applyTheme(preference: ThemeMode, animate = false) {
+			const systemIsDark = mediaQuery.matches;
+			const isDark = preference === 'dark' || (preference === 'system' && systemIsDark);
+
+			if (isDark) {
+				document.documentElement.classList.add('dark');
+			} else {
+				document.documentElement.classList.remove('dark');
+			}
+
+			document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+			document.documentElement.setAttribute('data-theme-preference', preference);
+			updateTooltip(preference);
+
+			// 使用 morphicons 顺滑变换图标
+			if (morphEl) {
+				const targetIcon = ICONS[preference];
+				if (animate && typeof morphEl.morphTo === 'function') {
+					morphEl.morphTo(targetIcon, 'snappy');
+				} else if (typeof morphEl.set === 'function') {
+					morphEl.set(targetIcon);
+				}
+			}
+
+			// 同步通知 Giscus 评论区
+			const giscusIframe = document.querySelector<HTMLIFrameElement>('iframe.giscus-frame');
+			if (giscusIframe?.contentWindow) {
+				giscusIframe.contentWindow.postMessage(
+					{ giscus: { setConfig: { theme: isDark ? 'transparent_dark' : 'light' } } },
+					'https://giscus.app'
+				);
+			}
+		}
+
+		// 单击直接切换至下一模式，并开启动画
+		btn?.addEventListener('click', () => {
+			const current = getCurrentPreference();
+			const currentIndex = THEME_CYCLE.indexOf(current);
+			const next = THEME_CYCLE[(currentIndex + 1) % THEME_CYCLE.length];
+
+			if (next === 'system') {
+				localStorage.removeItem('theme');
+			} else {
+				localStorage.setItem('theme', next);
+			}
+
+			applyTheme(next, true);
+		});
+
+		// 监听系统偏好变化
+		mediaQuery.addEventListener('change', () => {
+			if (getCurrentPreference() === 'system') {
+				applyTheme('system', false);
+			}
+		});
+
+		// 初始化时无动画直接定位
+		applyTheme(getCurrentPreference(), false);
+	}
+
+	setupThemeToggle();
+	document.addEventListener('astro:after-swap', setupThemeToggle);
+</script>

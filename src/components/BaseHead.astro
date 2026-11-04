@@ -36,6 +36,22 @@ const { title, description, image } = Astro.props;
 <!-- Canonical URL -->
 <link rel="canonical" href={canonicalURL} />
 
+<!-- Theme Init (Prevent Flash of Unstyled Theme) -->
+<script is:inline>
+	(function () {
+		const storedTheme = localStorage.getItem('theme');
+		const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+		const activeTheme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : systemTheme;
+		if (activeTheme === 'dark') {
+			document.documentElement.classList.add('dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+		}
+		document.documentElement.setAttribute('data-theme', activeTheme);
+		document.documentElement.setAttribute('data-theme-preference', storedTheme || 'system');
+	})();
+</script>
+
 <!-- Primary Meta Tags -->
 <title>{title}</title>
 <meta name="title" content={title} />
