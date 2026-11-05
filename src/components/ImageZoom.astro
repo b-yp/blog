@@ -1,0 +1,208 @@
+---
+// ImageZoom.astro: 正文图片极致懒加载灯箱，支持滚轮无级缩放、拖拽查看大图、多图相册切换与新标签页查看原图
+---
+
+<script>
+	import pswpCssUrl from 'photoswipe/style.css?url';
+
+	let pswpPromise: Promise<any> | null = null;
+
+	// 动态插入 PhotoSwipe 样式（仅在需要时注入 head，首屏 0 CSS 开销）
+	function injectStyles() {
+		if (document.getElementById('photoswipe-style')) return;
+		const link = document.createElement('link');
+		link.id = 'photoswipe-style';
+		link.rel = 'stylesheet';
+		link.href = pswpCssUrl;
+		document.head.appendChild(link);
+	}
+
+	// 预加载 PhotoSwipe 核心模块与样式（仅在鼠标悬停或点击时触发，首屏 0 消耗）
+	function loadPhotoSwipe() {
+		if (!pswpPromise) {
+			injectStyles();
+			pswpPromise = import('photoswipe').then((m) => m.default || m);
+		}
+		return pswpPromise;
+	}
+
+	function setupImageZoom() {
+		// 目标图片：正文区域与题图，排除标记为 no-zoom 的图片
+		const rawImages = Array.from(
+			document.querySelectorAll<HTMLImageElement>('.prose img:not(.no-zoom), .hero-image img:not(.no-zoom)')
+		);
+
+		// 过滤掉包含在普通外链中的图标/徽章等非看图图片
+		const images = rawImages.filter((img) => {
+			const parentAnchor = img.closest('a');
+			if (parentAnchor) {
+				const href = parentAnchor.getAttribute('href') || '';
+				const isImageLink = /\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(href);
+				if (!isImageLink) return false;
+			}
+			return true;
+		});
+
+		if (images.length === 0) return;
+
+		// 收集图片信息生成画廊数据
+		function buildGalleryItems() {
+			return images.map((img) => {
+				const naturalW = img.naturalWidth || img.width || 1200;
+				const naturalH = img.naturalHeight || img.height || 800;
+				return {
+					src: img.currentSrc || img.src,
+					width: naturalW,
+					height: naturalH,
+					alt: img.alt || '',
+					element: img,
+					msrc: img.currentSrc || img.src,
+				};
+			});
+		}
+
+		images.forEach((img, index) => {
+			if (img.dataset.zoomInit) return;
+			img.dataset.zoomInit = 'true';
+			img.classList.add('zoomable-img');
+
+			// 鼠标悬停（或移动端触碰）时静默预加载依赖，实现点击零延迟秒开
+			const onPreload = () => {
+				loadPhotoSwipe();
+				img.removeEventListener('pointerenter', onPreload);
+			};
+			img.addEventListener('pointerenter', onPreload, { passive: true });
+
+			// 点击打开大图预览
+			img.addEventListener('click', async (e) => {
+				if (e.defaultPrevented || window.getSelection()?.toString()) return;
+
+				const parentAnchor = img.closest('a');
+				if (parentAnchor) {
+					e.preventDefault();
+				}
+
+				const PhotoSwipe = await loadPhotoSwipe();
+				const items = buildGalleryItems();
+
+				const pswp = new PhotoSwipe({
+					dataSource: items,
+					index: index,
+					bgOpacity: 0.88,
+					wheelToZoom: true,
+					padding: { top: 32, bottom: 48, left: 24, right: 24 },
+					closeTitle: '关闭 (Esc)',
+					zoomTitle: '缩放',
+					arrowPrevTitle: '上一张 (左箭头)',
+					arrowNextTitle: '下一张 (右箭头)',
+				});
+
+				// 注册 UI 组件：右上角「新标签页打开原图」按钮与底部说明
+				pswp.on('uiRegister', () => {
+					pswp.ui?.registerElement({
+						name: 'open-original-btn',
+						order: 8,
+						isButton: true,
+						tagName: 'button',
+						html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>',
+						ariaLabel: '在新标签页打开原图',
+						onInit: (el: HTMLElement) => {
+							el.setAttribute('title', '在新标签页打开原图');
+							el.classList.add('pswp__button--open-original');
+							el.addEventListener('click', () => {
+								const currItem = pswp.currSlide?.data;
+								if (currItem && currItem.src) {
+									window.open(currItem.src, '_blank', 'noopener,noreferrer');
+								}
+							});
+						},
+					});
+
+					// 底部图片描述（如有 alt 文本）
+					pswp.ui?.registerElement({
+						name: 'custom-caption',
+						order: 9,
+						isButton: false,
+						appendTo: 'root',
+						html: '',
+						onInit: (el: HTMLElement) => {
+							el.classList.add('pswp__custom-caption');
+							pswp.on('change', () => {
+								const curr = pswp.currSlide?.data;
+								const alt = curr?.alt;
+								if (alt) {
+									el.textContent = alt;
+									el.style.display = 'block';
+								} else {
+									el.textContent = '';
+									el.style.display = 'none';
+								}
+							});
+						},
+					});
+				});
+
+				pswp.init();
+			});
+		});
+	}
+
+	setupImageZoom();
+	document.addEventListener('astro:page-load', setupImageZoom);
+	document.addEventListener('astro:after-swap', setupImageZoom);
+</script>
+
+<style is:global>
+	/* 正文可放大图片的交互样式 */
+	.zoomable-img {
+		cursor: zoom-in;
+		transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease;
+	}
+
+	.zoomable-img:hover {
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+	}
+
+	html.dark .zoomable-img:hover {
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+	}
+
+	/* PhotoSwipe 全屏遮罩及主体样式 */
+	.pswp {
+		--pswp-bg: rgba(18, 18, 20, 0.92);
+		--pswp-icon-color: #fafafa;
+		--pswp-icon-color-secondary: #a1a1aa;
+	}
+
+	/* 右上角在新标签页打开按钮样式 */
+	.pswp__button--open-original {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--pswp-icon-color);
+	}
+
+	.pswp__button--open-original svg {
+		stroke: currentColor;
+	}
+
+	/* 底部图片文字描述（Caption） */
+	.pswp__custom-caption {
+		position: absolute;
+		bottom: 14px;
+		left: 50%;
+		transform: translateX(-50%);
+		max-width: 80%;
+		padding: 6px 16px;
+		background: rgba(0, 0, 0, 0.65);
+		color: #f4f4f5;
+		font-size: 14px;
+		line-height: 1.5;
+		border-radius: 20px;
+		pointer-events: none;
+		text-align: center;
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		z-index: 1005;
+	}
+</style>

@@ -8,6 +8,7 @@ import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
 import Giscus from '../components/Giscus.astro';
 import CopyCode from '../components/CopyCode.astro';
+import ImageZoom from '../components/ImageZoom.astro';
 import TableOfContents from '../components/TableOfContents.astro';
 
 type Props = CollectionEntry<'blog'>['data'] & {
@@ -174,5 +175,6 @@ const { title, description, pubDate, updatedDate, heroImage, headings = [] } = A
 		</main>
 		<Footer />
 		<CopyCode />
+		<ImageZoom />
 	</body>
 </html>
